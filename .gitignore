@@ -1,0 +1,9 @@
+# zig
+zig-out/
+.zig-cache/
+
+# macos
+.DS_Store
+
+# upstream
+rsync/
