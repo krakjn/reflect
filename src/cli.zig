@@ -11,7 +11,7 @@ pub const rsync_port: i32 = 873;
 pub const max_basis_dirs: usize = 20;
 pub const default_max_alloc: usize = 1024 * 1024 * 1024;
 pub const default_backup_suffix = "~";
-pub const default_rsync_path = "rsync";
+pub const default_reflect_path = "reflect";
 pub const compression_level_unspecified: i32 = std.math.minInt(i32);
 
 pub const info_flag_count: usize = 13;
@@ -67,7 +67,6 @@ const help_text =
     \\ -R, --relative               use relative path names
     \\     --no-implied-dirs        don't send implied dirs with --relative
     \\ -d, --dirs                   transfer directories without recursing
-    \\     --old-dirs, --old-d      works like --dirs when talking to old rsync
     \\     --mkpath                 create destination's missing path components
     \\ -x, --one-file-system        don't cross filesystem boundaries
     \\ -m, --prune-empty-dirs       prune empty directory chains from file-list
@@ -172,8 +171,8 @@ const help_text =
     \\                -->| filtering |<--
     \\ -C, --cvs-exclude            auto-ignore files in the same way CVS does
     \\ -f, --filter=RULE            add a file-filtering RULE
-    \\ -F                           same as --filter='dir-merge /.rsync-filter'
-    \\                              repeated: --filter='- .rsync-filter'
+    \\ -F                           same as --filter='dir-merge /.reflect-filter'
+    \\                              repeated: --filter='- .reflect-filter'
     \\     --exclude=PATTERN        exclude files matching PATTERN
     \\     --exclude-from=FILE      read exclude patterns from FILE
     \\     --include=PATTERN        don't exclude files matching PATTERN
@@ -183,7 +182,7 @@ const help_text =
     \\
     \\                -->| remote connection |<--
     \\ -e, --rsh=COMMAND            specify the remote shell to use
-    \\     --rsync-path=PROGRAM     specify the reflect to run on remote machine
+    \\     --reflect-path=PROGRAM   specify the reflect to run on remote machine
     \\ -M, --remote-option=OPT      send OPTION to the remote side only
     \\ -s, --secluded-args          use the protocol to safely send the args
     \\     --old-args               disable the modern arg-protection idiom
@@ -603,8 +602,8 @@ pub const ReflectOptions = struct {
 
     // --- network & remote shell ---
     shell_cmd: ?[]const u8 = null,
-    rsync_path: []const u8 = default_rsync_path,
-    rsync_port: i32 = 0,
+    reflect_path: []const u8 = default_reflect_path,
+    reflect_port: i32 = 0,
     bind_address: ?[]const u8 = null,
     sockopts: ?[]const u8 = null,
     blocking_io: BlockingIoMode = .auto,
@@ -1625,8 +1624,8 @@ fn applyLongFlag(
         opts.shell_cmd = value orelse return error.MissingFlagValue;
         return;
     }
-    if (std.mem.eql(u8, name, "rsync-path")) {
-        opts.rsync_path = value orelse return error.MissingFlagValue;
+    if (std.mem.eql(u8, name, "reflect-path")) {
+        opts.reflect_path = value orelse return error.MissingFlagValue;
         return;
     }
     if (std.mem.eql(u8, name, "temp-dir")) {
@@ -1671,7 +1670,7 @@ fn applyLongFlag(
     }
     if (std.mem.eql(u8, name, "port")) {
         const v = value orelse return error.MissingFlagValue;
-        opts.rsync_port = try parseIntFlag(v);
+        opts.reflect_port = try parseIntFlag(v);
         return;
     }
     if (std.mem.eql(u8, name, "sockopts")) {
@@ -1975,7 +1974,7 @@ test "defaults match rsync initial globals" {
     try std.testing.expectEqual(@as(i32, protocol_version), opts.protocol_version);
     try std.testing.expectEqual(@as(usize, default_max_alloc), opts.max_alloc);
     try std.testing.expectEqual(@as(i16, 1), opts.info_levels[@intFromEnum(InfoFlag.nonreg)]);
-    try std.testing.expectEqualStrings(default_rsync_path, opts.rsync_path);
+    try std.testing.expectEqualStrings(default_reflect_path, opts.reflect_path);
 }
 
 test "archive mode sets expected preservation flags" {
