@@ -9,17 +9,16 @@ pub const std_options: std.Options = .{
 };
 
 pub fn main(init: std.process.Init) !void {
-    // Prints to stderr, unbuffered, ignoring potential errors.
-    // std.debug.print("All of your {s} belongs to us.\n", .{"codebase"});
-
-    // This is appropriate for anything that lives as long as the process.
     const arena: std.mem.Allocator = init.arena.allocator();
 
-    // Accessing command line arguments:
     const args = try init.minimal.args.toSlice(arena);
     const cmd_args = if (args.len > 0) args[1..] else args[0..0];
     switch (cli.parse(arena, cmd_args)) {
-        .ok => |captures| cli.show_capture(captures),
+        .ok => |parsed| {
+            std.log.info("destination: {s}", .{parsed.destination orelse "(none)"});
+            for (parsed.sources) |src| std.log.info("source: {s}", .{src});
+            std.log.info("dry_run={}", .{parsed.options.dry_run});
+        },
         .err => |failure| std.log.err("{f}", .{failure}),
     }
 
