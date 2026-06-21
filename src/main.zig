@@ -4,6 +4,7 @@ const Io = std.Io;
 const cli = @import("cli.zig");
 const reflect = @import("reflect");
 const proc = @import("proc.zig");
+const platform = @import("platforms/platform.zig");
 
 pub const std_options: std.Options = .{
     .log_level = .info,
@@ -11,6 +12,8 @@ pub const std_options: std.Options = .{
 
 pub fn main(init: std.process.Init) !void {
     const arena: std.mem.Allocator = init.arena.allocator();
+
+    std.log.info("page size: {d}", .{platform.get_page_size()});
 
     const args = try init.minimal.args.toSlice(arena);
     const cmd_args = if (args.len > 0) args[1..] else args[0..0];
