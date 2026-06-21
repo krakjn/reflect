@@ -3,6 +3,7 @@ const Io = std.Io;
 
 const cli = @import("cli.zig");
 const reflect = @import("reflect");
+const proc = @import("proc.zig");
 
 pub const std_options: std.Options = .{
     .log_level = .info,
