@@ -1,7 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
 
-const cli = @import("cli.zig");
+const cli = @import("cli");
 const reflect = @import("reflect");
 const proc = @import("proc.zig");
 const platform = @import("platforms/platform.zig");

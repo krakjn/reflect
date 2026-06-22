@@ -1,9 +1,27 @@
-//! By convention, root.zig is the root source file when making a package.
+//! Public `libreflect` surface.
 const std = @import("std");
 const Io = std.Io;
 
-/// This is a documentation comment to explain the `printAnotherMessage` function below.
-///
+pub const errors = @import("error.zig");
+pub const session = @import("session.zig");
+
+pub const ExitCode = errors.ExitCode;
+pub const ExitTracker = errors.ExitTracker;
+pub const Failure = errors.Failure;
+pub const IoErrors = errors.IoErrors;
+
+pub const Session = session.Session;
+pub const Stats = session.Stats;
+pub const Roles = session.Roles;
+pub const Paths = session.Paths;
+pub const IoState = session.IoState;
+pub const StreamPair = session.StreamPair;
+pub const Identity = session.Identity;
+pub const Connection = session.Connection;
+pub const ConnectionKind = session.ConnectionKind;
+pub const ProcessSide = session.ProcessSide;
+pub const TransferSide = session.TransferSide;
+
 /// Accepting an `Io.Writer` instance is a handy way to write reusable code.
 pub fn printAnotherMessage(writer: *Io.Writer) Io.Writer.Error!void {
     try writer.print("Run `zig build test` to run the tests.\n", .{});

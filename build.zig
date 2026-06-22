@@ -22,6 +22,15 @@ pub fn build(b: *std.Build) void {
     build_options.addOption([]const u8, "version", pkg.version);
     const build_options_mod = build_options.createModule();
 
+    const cli_mod = b.createModule(.{
+        .root_source_file = b.path("src/cli.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "build_options", .module = build_options_mod },
+        },
+    });
+
     // It's also possible to define more custom flags to toggle optional features
     // of this build script using `b.option()`. All defined flags (including
     // target and optimize options) will be listed when running `zig build --help`
@@ -45,6 +54,10 @@ pub fn build(b: *std.Build) void {
         // Later on we'll use this module as the root module of a test executable
         // which requires us to specify a target.
         .target = target,
+        .imports = &.{
+            .{ .name = "build_options", .module = build_options_mod },
+            .{ .name = "cli", .module = cli_mod },
+        },
     });
 
     // const cli_mod = b.createModule(.{
@@ -87,7 +100,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "reflect", .module = mod },
                 .{ .name = "build_options", .module = build_options_mod },
-                // .{ .name = "cli", .module = cli_mod },
+                .{ .name = "cli", .module = cli_mod },
             },
         }),
     });
