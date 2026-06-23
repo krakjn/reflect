@@ -4,11 +4,11 @@
 //! Callers construct a `Session` once at startup and pass it through later slices.
 
 const std = @import("std");
-const builtin = @import("builtin");
 const posix = std.posix;
 
 const cli = @import("cli");
 const error_mod = @import("error.zig");
+const platform = @import("platforms/mod.zig").platform;
 
 pub const ExitCode = error_mod.ExitCode;
 pub const ExitTracker = error_mod.ExitTracker;
@@ -173,18 +173,12 @@ pub const Identity = struct {
     umask_before: u16,
 
     pub fn capture() Identity {
-        const uid = posix.getuid();
-        const gid = posix.getgid();
-        const umask_before: u16 = if (builtin.os.tag == .windows)
-            0
-        else
-            @truncate(posix.umask(0));
-
+        const id = platform.capture_process_identity();
         return .{
-            .uid = uid,
-            .gid = gid,
-            .is_root = uid == 0,
-            .umask_before = umask_before,
+            .uid = id.uid,
+            .gid = id.gid,
+            .is_root = id.uid == 0,
+            .umask_before = id.umask,
         };
     }
 };
@@ -304,7 +298,7 @@ pub const Session = struct {
             .stats = .{},
             .exit = .{},
             .io_errors = .none,
-            .start_time = std.time.timestamp(),
+            .start_time = platform.get_page_size(),
         };
     }
 
@@ -347,7 +341,7 @@ pub const Session = struct {
     }
 
     pub fn elapsedSeconds(self: *const Session) i64 {
-        return std.time.timestamp() - self.start_time;
+        return platform.unix_timestamp_now() - self.start_time;
     }
 };
 

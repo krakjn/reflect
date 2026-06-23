@@ -4,6 +4,7 @@ const Io = std.Io;
 
 pub const errors = @import("error.zig");
 pub const session = @import("session.zig");
+pub const platform = @import("platforms/mod.zig").platform;
 
 pub const ExitCode = errors.ExitCode;
 pub const ExitTracker = errors.ExitTracker;

@@ -2,7 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
 const posix = std.posix;
-const platform = @import("platforms/platform.zig");
 
 // There's probably never more than at most 2 outstanding child processes,
 // but set it higher, just in case.
