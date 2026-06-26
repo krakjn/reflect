@@ -4,6 +4,7 @@ const Io = std.Io;
 
 pub const errors = @import("error.zig");
 pub const session = @import("session.zig");
+pub const filter = @import("filter/mod.zig");
 pub const platform = @import("platforms/mod.zig").platform;
 
 pub const ExitCode = errors.ExitCode;
@@ -23,15 +24,23 @@ pub const ConnectionKind = session.ConnectionKind;
 pub const ProcessSide = session.ProcessSide;
 pub const TransferSide = session.TransferSide;
 
+pub const FilterEngine = filter.FilterEngine;
+pub const FilterResult = filter.FilterResult;
+pub const NameFlags = filter.NameFlags;
+
 /// Accepting an `Io.Writer` instance is a handy way to write reusable code.
 pub fn printAnotherMessage(writer: *Io.Writer) Io.Writer.Error!void {
     try writer.print("Run `zig build test` to run the tests.\n", .{});
 }
 
-pub fn add(a: i32, b: i32) i32 {
+export fn add(a: i32, b: i32) i32 {
     return a + b;
 }
 
 test "basic add functionality" {
     try std.testing.expect(add(3, 7) == 10);
+}
+
+test {
+    std.testing.refAllDecls(filter);
 }

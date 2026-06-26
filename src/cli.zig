@@ -443,6 +443,20 @@ pub const ParseFailure = struct {
     }
 };
 
+/// One filter-related CLI flag in argv order (rsync `options.c` pushes each into `filter_list` as parsed).
+pub const FilterCommandKind = enum {
+    filter,
+    exclude,
+    include,
+    exclude_from,
+    include_from,
+};
+
+pub const FilterCommand = struct {
+    kind: FilterCommandKind,
+    value: []const u8,
+};
+
 pub const ParsedArgs = struct {
     options: ReflectOptions,
     sources: []const []const u8,
@@ -577,6 +591,8 @@ pub const ReflectOptions = struct {
 
     // --- filtering ---
     cvs_exclude: bool = false,
+    /// Filter rules in argv order (matches rsync's single filter_list timeline).
+    filter_commands: []const FilterCommand = &.{},
     filters: []const []const u8 = &.{},
     excludes: []const []const u8 = &.{},
     includes: []const []const u8 = &.{},
@@ -682,6 +698,7 @@ const ParseLists = struct {
     includes: std.ArrayList([]const u8),
     exclude_from: std.ArrayList([]const u8),
     include_from: std.ArrayList([]const u8),
+    filter_commands: std.ArrayList(FilterCommand),
     remote_options: std.ArrayList([]const u8),
 
     fn init() ParseLists {
@@ -691,11 +708,13 @@ const ParseLists = struct {
             .includes = .empty,
             .exclude_from = .empty,
             .include_from = .empty,
+            .filter_commands = .empty,
             .remote_options = .empty,
         };
     }
 
     fn finish(self: *ParseLists, opts: *ReflectOptions) void {
+        opts.filter_commands = self.filter_commands.items;
         opts.filters = self.filters.items;
         opts.excludes = self.excludes.items;
         opts.includes = self.includes.items;
@@ -872,6 +891,22 @@ fn appendList(
     value: []const u8,
 ) ParseError!void {
     list.append(allocator, value) catch return error.OutOfMemory;
+}
+
+fn appendFilterCommand(
+    allocator: std.mem.Allocator,
+    lists: *ParseLists,
+    kind: FilterCommandKind,
+    value: []const u8,
+) ParseError!void {
+    lists.filter_commands.append(allocator, .{ .kind = kind, .value = value }) catch return error.OutOfMemory;
+    switch (kind) {
+        .filter => try appendList(allocator, &lists.filters, value),
+        .exclude => try appendList(allocator, &lists.excludes, value),
+        .include => try appendList(allocator, &lists.includes, value),
+        .exclude_from => try appendList(allocator, &lists.exclude_from, value),
+        .include_from => try appendList(allocator, &lists.include_from, value),
+    }
 }
 
 fn applyNegatedLongFlag(opts: *ReflectOptions, name: []const u8) ParseError!void {
@@ -1396,27 +1431,27 @@ fn applyLongFlag(
     }
     if (std.mem.eql(u8, name, "filter")) {
         const v = value orelse return error.MissingFlagValue;
-        try appendList(allocator, &lists.filters, v);
+        try appendFilterCommand(allocator, lists, .filter, v);
         return;
     }
     if (std.mem.eql(u8, name, "exclude")) {
         const v = value orelse return error.MissingFlagValue;
-        try appendList(allocator, &lists.excludes, v);
+        try appendFilterCommand(allocator, lists, .exclude, v);
         return;
     }
     if (std.mem.eql(u8, name, "include")) {
         const v = value orelse return error.MissingFlagValue;
-        try appendList(allocator, &lists.includes, v);
+        try appendFilterCommand(allocator, lists, .include, v);
         return;
     }
     if (std.mem.eql(u8, name, "exclude-from")) {
         const v = value orelse return error.MissingFlagValue;
-        try appendList(allocator, &lists.exclude_from, v);
+        try appendFilterCommand(allocator, lists, .exclude_from, v);
         return;
     }
     if (std.mem.eql(u8, name, "include-from")) {
         const v = value orelse return error.MissingFlagValue;
-        try appendList(allocator, &lists.include_from, v);
+        try appendFilterCommand(allocator, lists, .include_from, v);
         return;
     }
     if (std.mem.eql(u8, name, "cvs-exclude")) {
@@ -1740,7 +1775,7 @@ fn applyShortFlag(
         },
         'e' => opts.shell_cmd = value orelse return error.MissingFlagValue,
         'E' => opts.preserve_executability = true,
-        'f' => try appendList(allocator, &lists.filters, value orelse return error.MissingFlagValue),
+        'f' => try appendFilterCommand(allocator, lists, .filter, value orelse return error.MissingFlagValue),
         'g' => opts.preserve_gid = true,
         'h' => opts.human_readable = true,
         'H' => opts.preserve_hard_links = true,
@@ -1789,8 +1824,8 @@ fn applyShortFlag(
         'F' => {
             opts.f_option_count +|= 1;
             switch (opts.f_option_count) {
-                1 => try appendList(allocator, &lists.filters, ": /.rsync-filter"),
-                2 => try appendList(allocator, &lists.filters, "- .rsync-filter"),
+                1 => try appendFilterCommand(allocator, lists, .filter, ": /.rsync-filter"),
+                2 => try appendFilterCommand(allocator, lists, .filter, "- .rsync-filter"),
                 else => return error.InvalidFlagValue,
             }
         },
@@ -1947,6 +1982,22 @@ test "parse long flag with equals value" {
     };
     try std.testing.expectEqual(@as(usize, 1), parsed.options.excludes.len);
     try std.testing.expectEqualStrings("*.o", parsed.options.excludes[0]);
+    try std.testing.expectEqual(@as(usize, 1), parsed.options.filter_commands.len);
+    try std.testing.expect(parsed.options.filter_commands[0].kind == .exclude);
+}
+
+test "parse filter commands preserve argv order" {
+    const gpa = std.testing.allocator;
+    const result = parse(gpa, &.{ "--include=keep.o", "--exclude=*.o", "--filter=+ Makefile", "src/", "dest/" });
+    const parsed = switch (result) {
+        .ok => |p| p,
+        .err => |e| std.debug.panic("parse failed: {s}", .{@errorName(e.code)}),
+    };
+    try std.testing.expectEqual(@as(usize, 3), parsed.options.filter_commands.len);
+    try std.testing.expect(parsed.options.filter_commands[0].kind == .include);
+    try std.testing.expectEqualStrings("keep.o", parsed.options.filter_commands[0].value);
+    try std.testing.expect(parsed.options.filter_commands[1].kind == .exclude);
+    try std.testing.expect(parsed.options.filter_commands[2].kind == .filter);
 }
 
 test "parse rejects unknown flag" {

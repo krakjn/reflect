@@ -8,6 +8,7 @@ const posix = std.posix;
 
 const cli = @import("cli");
 const error_mod = @import("error.zig");
+const filter = @import("filter/mod.zig");
 const platform = @import("platforms/mod.zig").platform;
 
 pub const ExitCode = error_mod.ExitCode;
@@ -324,6 +325,14 @@ pub const Session = struct {
 
     pub fn validate(self: *const Session) ?Failure {
         return self.paths.validate(&self.options);
+    }
+
+    pub fn initFilters(self: *Session) !filter.FilterEngine {
+        const source_root: ?[]const u8 = if (self.paths.sources.len != 0)
+            self.paths.sources[0]
+        else
+            null;
+        return filter.FilterEngine.fromReflectOptions(self.allocator, &self.options, source_root);
     }
 
     pub fn fail(self: *Session, failure: Failure) ExitCode {

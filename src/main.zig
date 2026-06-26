@@ -23,7 +23,24 @@ pub fn main(init: std.process.Init) !void {
     var session = reflect.Session.fromParsed(arena, init.io, parsed);
     if (session.validate()) |failure| {
         std.log.err("{f}", .{failure});
-        return error.ValidationFailure;
+        return;
     }
-    // try reflect.run(init.io, session);
+
+    var filters = session.initFilters() catch |err| {
+        std.log.err("filter setup failed: {s}", .{@errorName(err)});
+        return;
+    };
+    defer filters.deinit();
+
+    std.log.info("Validation successful ({d} filter rules)", .{countFilterRules(&filters)});
+}
+
+fn countFilterRules(engine: *const reflect.FilterEngine) usize {
+    var count: usize = 0;
+    var node = engine.ctx.filter_list.head;
+    while (node) |rule| {
+        count += 1;
+        node = rule.next;
+    }
+    return count;
 }
