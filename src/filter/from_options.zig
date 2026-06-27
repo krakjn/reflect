@@ -70,6 +70,7 @@ test "fromReflectOptions preserves argv order" {
     const a = arena.allocator();
 
     const result = cli.parse(a, &.{
+        "reflect",
         "--include=keep.o",
         "--exclude=*.o",
         "--filter=+ Makefile",
@@ -95,7 +96,7 @@ test "fromReflectOptions -C adds cvs ignores" {
     defer arena.deinit();
     const a = arena.allocator();
 
-    const result = cli.parse(a, &.{ "-C", "src/", "dest/" });
+    const result = cli.parse(a, &.{ "reflect", "-C", "src/", "dest/" });
     const parsed = switch (result) {
         .ok => |p| p,
         .err => return error.TestUnexpectedResult,

@@ -24,16 +24,26 @@ fn trimTrailingSep(path: []const u8) []const u8 {
     return path[0..end];
 }
 
-fn resolveAbsPath(io: Io, allocator: std.mem.Allocator, path: []const u8) EmitError![]const u8 {
-    const resolved: []const u8 = if (std.fs.path.isAbsolute(path))
-        try allocator.dupe(u8, path)
-    else
-        try Dir.cwd().realPathFileAlloc(io, path, allocator);
-    return try allocator.dupe(u8, trimTrailingSep(resolved));
+fn pathHasTrailingSlash(path: []const u8) bool {
+    return path.len > 0 and path[path.len - 1] == std.fs.path.sep;
 }
 
-fn destHasTrailingSlash(dest: []const u8) bool {
-    return dest.len > 0 and dest[dest.len - 1] == std.fs.path.sep;
+fn anySourceTrailingSlash(sources: []const []const u8) bool {
+    for (sources) |source| {
+        if (pathHasTrailingSlash(source)) return true;
+    }
+    return false;
+}
+
+fn resolveDestPath(io: Io, allocator: std.mem.Allocator, path: []const u8) EmitError![]const u8 {
+    const trimmed = trimTrailingSep(path);
+    if (trimmed.len == 0) return try allocator.dupe(u8, "");
+
+    if (std.fs.path.isAbsolute(trimmed)) return try allocator.dupe(u8, trimmed);
+
+    const cwd = try Dir.cwd().realPathFileAlloc(io, ".", allocator);
+    defer allocator.free(cwd);
+    return try std.fs.path.join(allocator, &.{ cwd, trimmed });
 }
 
 fn joinDestPath(allocator: std.mem.Allocator, dest_root: []const u8, rel: []const u8) ![]const u8 {
@@ -57,6 +67,7 @@ pub fn emitCatalog(
     io: Io,
     allocator: std.mem.Allocator,
     opts: *const cli.ReflectOptions,
+    sources: []const []const u8,
     dest_arg: ?[]const u8,
     catalog_list: *const FileList,
     writer: *Io.Writer,
@@ -82,7 +93,7 @@ pub fn emitCatalog(
 
     if (dest_arg == null) return;
 
-    const dest_abs = try resolveAbsPath(io, allocator, dest_arg.?);
+    const dest_abs = try resolveDestPath(io, allocator, dest_arg.?);
     defer allocator.free(dest_abs);
 
     const dest_existed = blk: {
@@ -91,7 +102,9 @@ pub fn emitCatalog(
     };
 
     const need_create_msg = !dest_existed and
-        (catalog_list.entries.items.len > 1 or destHasTrailingSlash(dest_arg.?));
+        (sources.len > 1 or
+            pathHasTrailingSlash(dest_arg.?) or
+            anySourceTrailingSlash(sources));
 
     if (shouldShowFlistBanner(opts)) try writer.writeAll("sending incremental file list\n");
     if (need_create_msg and !opts.quiet) {

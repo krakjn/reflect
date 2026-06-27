@@ -11,6 +11,7 @@ const error_mod = @import("error.zig");
 const filter = @import("filter/mod.zig");
 const catalog = @import("catalog/mod.zig");
 const plan = @import("plan/mod.zig");
+const xfer = @import("xfer/mod.zig");
 const platform = @import("platforms/mod.zig").platform;
 
 pub const ExitCode = error_mod.ExitCode;
@@ -135,6 +136,38 @@ pub const Roles = struct {
         };
     }
 
+    pub fn fromParsed(parsed: cli.ParsedArgs) Roles {
+        const options = parsed.options;
+        const side: ProcessSide = if (options.am_daemon)
+            .daemon
+        else if (options.am_server)
+            .server
+        else
+            .client;
+
+        const transfer: TransferSide = if (options.am_sender)
+            .sender
+        else if (options.am_server)
+            .none
+        else
+            .none;
+
+        return .{
+            .side = side,
+            .transfer = transfer,
+            .connection = detectConnection(parsed),
+        };
+    }
+
+    fn detectConnection(parsed: cli.ParsedArgs) Connection {
+        const local = !pathLooksRemote(parsed.destination orelse "") and
+            (parsed.sources.len == 0 or !pathLooksRemote(parsed.sources[0]));
+        return .{
+            .kind = if (local) .local else .remote_shell,
+            .local = local,
+        };
+    }
+
     pub fn isClient(self: Roles) bool {
         return self.side == .client;
     }
@@ -167,6 +200,18 @@ pub const Roles = struct {
         self.connection = .{ .kind = kind, .local = local };
     }
 };
+
+fn pathLooksRemote(path: []const u8) bool {
+    if (path.len == 0) return false;
+    if (std.mem.indexOf(u8, path, "::")) |_| return true;
+    if (std.mem.startsWith(u8, path, "reflect://")) return true;
+    if (std.mem.indexOf(u8, path, ":")) |i| {
+        if (i == 1 and path[0] >= 'A' and path[0] <= 'Z') return false;
+        if (i == 1 and path[0] >= 'a' and path[0] <= 'z') return false;
+        return i > 0;
+    }
+    return false;
+}
 
 /// Caller identity captured at startup (rsync `our_uid` / `orig_umask`).
 pub const Identity = struct {
@@ -295,7 +340,7 @@ pub const Session = struct {
             .allocator = allocator,
             .options = parsed.options,
             .paths = Paths.fromParsed(parsed),
-            .roles = Roles.fromOptions(&parsed.options),
+            .roles = Roles.fromParsed(parsed),
             .identity = Identity.capture(),
             .io = IoState.init(io),
             .stats = .{},
@@ -358,10 +403,35 @@ pub const Session = struct {
             self.io.io,
             self.allocator,
             &self.options,
+            self.paths.sources,
             self.paths.destination,
             catalog_list,
             writer,
         );
+    }
+
+    pub fn runLocalTransfer(self: *Session, catalog_list: *const catalog.FileList) xfer.LocalError!void {
+        const dest = self.paths.destination orelse return error.FileNotFound;
+        if (!self.roles.connection.local) return error.Unexpected;
+        if (!self.effectiveWholeFile()) return error.Unexpected;
+
+        var copy_stats: xfer.CopyStats = .{};
+        try xfer.runWholeFile(
+            self.io.io,
+            self.allocator,
+            &self.options,
+            self.paths.sources,
+            dest,
+            catalog_list,
+            &copy_stats,
+        );
+
+        self.stats.xferred_files += copy_stats.xferred_files;
+        self.stats.created_dirs += copy_stats.created_dirs;
+        self.stats.created_symlinks += copy_stats.created_symlinks;
+        self.stats.total_transferred_size += copy_stats.total_transferred_size;
+        self.stats.num_files = copy_stats.num_files;
+        self.stats.total_size = copy_stats.total_size;
     }
 
     pub fn fail(self: *Session, failure: Failure) ExitCode {

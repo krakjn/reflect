@@ -35,6 +35,8 @@ pub const FileEntry = struct {
     path: []const u8,
     /// Filter-check path (leading `/`, rsync-style).
     filter_path: []const u8,
+    /// Absolute source path (for local copy, Slice 2).
+    src_abs: []const u8,
     kind: Kind,
     size: u64,
     mtime: i128,
@@ -45,6 +47,7 @@ pub const FileEntry = struct {
     pub fn deinit(self: *FileEntry, allocator: std.mem.Allocator) void {
         allocator.free(self.rel_path);
         allocator.free(self.filter_path);
+        allocator.free(self.src_abs);
         if (self.symlink_target) |t| allocator.free(t);
         self.* = undefined;
     }

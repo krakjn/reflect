@@ -9,6 +9,25 @@ const Io = std.Io;
 const File = Io.File;
 const ItemFlags = log.ItemFlags;
 
+pub fn shouldTransfer(
+    src: *const entry.FileEntry,
+    dest: ?File.Stat,
+    opts: *const cli.ReflectOptions,
+) bool {
+    if (opts.ignore_existing and dest != null) return false;
+
+    const flags = compareEntry(src, dest, opts);
+    if (!flags.isSignificant()) return false;
+
+    if (opts.update_only and dest != null) {
+        const diff = src.mtime - dest.?.mtime.nanoseconds;
+        const window = @as(i128, @max(0, opts.modify_window)) * std.time.ns_per_s;
+        if (diff < window) return false;
+    }
+
+    return true;
+}
+
 pub fn compareEntry(
     src: *const entry.FileEntry,
     dest: ?File.Stat,
@@ -47,6 +66,7 @@ test "compareEntry new vs unchanged" {
         .rel_path = "f",
         .path = "f",
         .filter_path = "/f",
+        .src_abs = "/tmp/f",
         .kind = .file,
         .size = 10,
         .mtime = 1000,

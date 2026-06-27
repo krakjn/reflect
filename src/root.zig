@@ -34,9 +34,10 @@ pub const NameFlags = filter.NameFlags;
 pub const FileEntry = catalog.FileEntry;
 pub const FileList = catalog.FileList;
 pub const WalkOptions = catalog.WalkOptions;
+pub const xfer = @import("xfer/mod.zig");
 
-pub const ItemFlags = log.ItemFlags;
-pub const emitCatalog = plan.emitCatalog;
+pub const CopyStats = xfer.CopyStats;
+pub const runWholeFile = xfer.runWholeFile;
 
 /// Accepting an `Io.Writer` instance is a handy way to write reusable code.
 pub fn printAnotherMessage(writer: *Io.Writer) Io.Writer.Error!void {
@@ -56,4 +57,5 @@ test {
     std.testing.refAllDecls(catalog);
     std.testing.refAllDecls(log);
     std.testing.refAllDecls(plan);
+    std.testing.refAllDecls(xfer);
 }

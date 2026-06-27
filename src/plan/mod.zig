@@ -5,6 +5,7 @@ pub const emit = @import("emit.zig");
 pub const list_format = @import("list_format.zig");
 
 pub const compareEntry = compare.compareEntry;
+pub const shouldTransfer = compare.shouldTransfer;
 pub const emitCatalog = emit.emitCatalog;
 
 test {

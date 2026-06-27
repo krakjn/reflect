@@ -73,9 +73,15 @@ fn pushFilterDir(engine: *FilterEngine, rel: []const u8) WalkError!?*filter.Loca
     };
 }
 
+fn srcAbsPath(allocator: Allocator, source_root: []const u8, rel: []const u8) Allocator.Error![]const u8 {
+    if (rel.len == 0) return try allocator.dupe(u8, source_root);
+    return std.fs.path.join(allocator, &.{ source_root, rel });
+}
+
 fn appendEntry(
     allocator: Allocator,
     catalog: *FileList,
+    source_root: []const u8,
     rel: []const u8,
     kind: entry.Kind,
     stat: File.Stat,
@@ -85,11 +91,14 @@ fn appendEntry(
     errdefer allocator.free(rel_owned);
     const filter_path = try entry.filterPathFromRel(allocator, rel);
     errdefer allocator.free(filter_path);
+    const src_abs = try srcAbsPath(allocator, source_root, rel);
+    errdefer allocator.free(src_abs);
 
     try catalog.append(.{
         .rel_path = rel_owned,
         .path = rel_owned,
         .filter_path = filter_path,
+        .src_abs = src_abs,
         .kind = kind,
         .size = stat.size,
         .mtime = @intCast(stat.mtime.nanoseconds),
@@ -103,6 +112,7 @@ fn walkDir(
     allocator: Allocator,
     engine: *FilterEngine,
     dir: Dir,
+    source_root: []const u8,
     rel: []const u8,
     options: *const cli.ReflectOptions,
     catalog: *FileList,
@@ -155,12 +165,12 @@ fn walkDir(
         } else null;
         errdefer if (symlink_target) |t| allocator.free(t);
 
-        try appendEntry(allocator, catalog, child_rel, kind, stat, symlink_target);
+        try appendEntry(allocator, catalog, source_root, child_rel, kind, stat, symlink_target);
 
         if (kind == .dir and recurse) {
             const sub = try dir.openDir(io, dent.name, .{ .iterate = true });
             defer sub.close(io);
-            try walkDir(io, allocator, engine, sub, child_rel, options, catalog, root_dev);
+            try walkDir(io, allocator, engine, sub, source_root, child_rel, options, catalog, root_dev);
         }
     }
 }
@@ -197,8 +207,8 @@ pub fn walkSource(
     const root_dev = if (options.one_file_system) dirDev(root_dir) else null;
 
     if (shouldIncludeDirs(options) and !isExcluded(engine, "/", .dir)) {
-        try appendEntry(allocator, catalog, "", .dir, root_stat, null);
+        try appendEntry(allocator, catalog, source_path, "", .dir, root_stat, null);
     }
 
-    try walkDir(io, allocator, engine, root_dir, "", options, catalog, root_dev);
+    try walkDir(io, allocator, engine, root_dir, source_path, "", options, catalog, root_dev);
 }

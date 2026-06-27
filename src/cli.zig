@@ -1864,7 +1864,7 @@ pub fn parse(allocator: std.mem.Allocator, args: []const [:0]const u8) ParseResu
     var lists = ParseLists.init();
     var positional = std.ArrayList([]const u8).empty;
 
-    var i: usize = 0;
+    var i: usize = 1; // skip program name
     while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (std.mem.startsWith(u8, arg, "--")) {
@@ -1923,6 +1923,7 @@ pub fn parse(allocator: std.mem.Allocator, args: []const [:0]const u8) ParseResu
 
     if (opts.help) {
         std.debug.print("{s}", .{help_text});
+        opts.do_xfers = false;
         return .{ .ok = .{
             .options = opts,
             .sources = &.{},
@@ -1932,6 +1933,7 @@ pub fn parse(allocator: std.mem.Allocator, args: []const [:0]const u8) ParseResu
 
     if (opts.version) {
         std.debug.print("reflect version: {s}\n", .{build_options.version});
+        opts.do_xfers = false;
         return .{ .ok = .{
             .options = opts,
             .sources = &.{},
