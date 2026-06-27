@@ -3,17 +3,17 @@ const Io = std.Io;
 
 const cli = @import("cli");
 const reflect = @import("reflect");
-const proc = @import("proc.zig");
 
 pub const std_options: std.Options = .{
-    .log_level = .info,
+    .log_level = .warn,
 };
 
 pub fn main(init: std.process.Init) !void {
     const arena: std.mem.Allocator = init.arena.allocator();
 
     const cmd_args = try init.minimal.args.toSlice(arena);
-    const parsed = switch (cli.parse(arena, cmd_args)) {
+    const user_args = if (cmd_args.len > 0) cmd_args[1..] else cmd_args[0..0];
+    const parsed = switch (cli.parse(arena, user_args)) {
         .ok => |parsed| parsed,
         .err => |parse_failure| {
             std.log.err("{f}", .{parse_failure});
@@ -32,15 +32,19 @@ pub fn main(init: std.process.Init) !void {
     };
     defer filters.deinit();
 
-    std.log.info("Validation successful ({d} filter rules)", .{countFilterRules(&filters)});
-}
+    var catalog = session.buildCatalog(&filters) catch |err| {
+        std.log.err("catalog walk failed: {s}", .{@errorName(err)});
+        return;
+    };
+    defer catalog.deinit();
 
-fn countFilterRules(engine: *const reflect.FilterEngine) usize {
-    var count: usize = 0;
-    var node = engine.ctx.filter_list.head;
-    while (node) |rule| {
-        count += 1;
-        node = rule.next;
-    }
-    return count;
+    var out_buf: [8192]u8 = undefined;
+    var stdout_writer = Io.File.stdout().writer(init.io, &out_buf);
+    const writer = &stdout_writer.interface;
+
+    session.emitCatalog(&catalog, writer) catch |err| {
+        std.log.err("output failed: {s}", .{@errorName(err)});
+        return;
+    };
+    try stdout_writer.end();
 }

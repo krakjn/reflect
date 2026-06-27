@@ -5,6 +5,9 @@ const Io = std.Io;
 pub const errors = @import("error.zig");
 pub const session = @import("session.zig");
 pub const filter = @import("filter/mod.zig");
+pub const catalog = @import("catalog/mod.zig");
+pub const log = @import("log/mod.zig");
+pub const plan = @import("plan/mod.zig");
 pub const platform = @import("platforms/mod.zig").platform;
 
 pub const ExitCode = errors.ExitCode;
@@ -28,6 +31,13 @@ pub const FilterEngine = filter.FilterEngine;
 pub const FilterResult = filter.FilterResult;
 pub const NameFlags = filter.NameFlags;
 
+pub const FileEntry = catalog.FileEntry;
+pub const FileList = catalog.FileList;
+pub const WalkOptions = catalog.WalkOptions;
+
+pub const ItemFlags = log.ItemFlags;
+pub const emitCatalog = plan.emitCatalog;
+
 /// Accepting an `Io.Writer` instance is a handy way to write reusable code.
 pub fn printAnotherMessage(writer: *Io.Writer) Io.Writer.Error!void {
     try writer.print("Run `zig build test` to run the tests.\n", .{});
@@ -43,4 +53,7 @@ test "basic add functionality" {
 
 test {
     std.testing.refAllDecls(filter);
+    std.testing.refAllDecls(catalog);
+    std.testing.refAllDecls(log);
+    std.testing.refAllDecls(plan);
 }

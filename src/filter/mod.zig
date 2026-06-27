@@ -15,8 +15,10 @@ pub const FilterRule = rule.FilterRule;
 pub const FilterList = rule.FilterList;
 pub const FilterResult = rule.FilterResult;
 pub const FilterContext = context.FilterContext;
+pub const LocalFilterState = context.LocalFilterState;
 pub const Options = context.Options;
 pub const ParseError = @import("parse.zig").ParseError;
+pub const FilterError = context.FilterError;
 pub const default_cvsignore = cvs.default_cvsignore;
 
 pub const FilterLevel = enum(u32) {
@@ -88,6 +90,10 @@ pub const FilterEngine = struct {
 
     pub fn setFilterDir(self: *FilterEngine, dir: []const u8) !void {
         try self.ctx.setFilterDir(dir);
+    }
+
+    pub fn setCurrDirPath(self: *FilterEngine, abs_path: []const u8) !void {
+        try self.ctx.setCurrDirPath(abs_path);
     }
 
     pub fn changeLocalFilterDir(self: *FilterEngine, dname: ?[]const u8, dir_depth: i32) !void {

@@ -9,6 +9,8 @@ const posix = std.posix;
 const cli = @import("cli");
 const error_mod = @import("error.zig");
 const filter = @import("filter/mod.zig");
+const catalog = @import("catalog/mod.zig");
+const plan = @import("plan/mod.zig");
 const platform = @import("platforms/mod.zig").platform;
 
 pub const ExitCode = error_mod.ExitCode;
@@ -335,6 +337,33 @@ pub const Session = struct {
         return filter.FilterEngine.fromReflectOptions(self.allocator, &self.options, source_root);
     }
 
+    pub fn buildCatalog(self: *Session, engine: *filter.FilterEngine) !catalog.FileList {
+        var list = catalog.FileList.init(self.allocator);
+        errdefer list.deinit();
+
+        for (self.paths.sources) |source| {
+            try catalog.walk.walkSource(self.io.io, self.allocator, engine, source, &self.options, &list);
+        }
+
+        return list;
+    }
+
+    /// Emit dry-run / list-only / itemize output to `writer` (Slice 1c).
+    pub fn emitCatalog(
+        self: *Session,
+        catalog_list: *const catalog.FileList,
+        writer: *std.Io.Writer,
+    ) !void {
+        try plan.emitCatalog(
+            self.io.io,
+            self.allocator,
+            &self.options,
+            self.paths.destination,
+            catalog_list,
+            writer,
+        );
+    }
+
     pub fn fail(self: *Session, failure: Failure) ExitCode {
         self.exit.setFailure(failure);
         return self.finish();
@@ -382,6 +411,32 @@ test "Session validate requires destination for client transfer" {
     const session = Session.fromParsed(std.testing.allocator, undefined, ok);
     const failure = session.validate() orelse return error.TestExpectedEqual;
     try std.testing.expectEqual(ExitCode.syntax, failure.exitCode());
+}
+
+test "buildCatalog walks source tree" {
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+
+    try tmp.dir.writeFile(std.testing.io, .{ .sub_path = "keep.txt", .data = "x" });
+    try tmp.dir.writeFile(std.testing.io, .{ .sub_path = "drop.o", .data = "x" });
+
+    const path = try tmp.dir.realPathFileAlloc(std.testing.io, ".", std.testing.allocator);
+    defer std.testing.allocator.free(path);
+
+    const result = cli.parse(std.testing.allocator, &.{ "-avn", "--exclude=*.o", path, "dest/" });
+    const ok = switch (result) {
+        .ok => |p| p,
+        .err => return error.TestUnexpectedResult,
+    };
+
+    var session = Session.fromParsed(std.testing.allocator, std.testing.io, ok);
+    var filters = try session.initFilters();
+    defer filters.deinit();
+
+    var file_list = try session.buildCatalog(&filters);
+    defer file_list.deinit();
+
+    try std.testing.expect(file_list.len() >= 1);
 }
 
 test "help-only session skips path validation" {

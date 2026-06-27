@@ -64,6 +64,8 @@ pub const FilterContext = struct {
     change_depth: i32 = -1,
     filt_stack: [path.max_path_len / 2 + 1]?*LocalFilterState = .{null} ** (path.max_path_len / 2 + 1),
     threaded: Io.Threaded,
+    /// When set, owned buffer backing `options.curr_dir` (freed on replace/deinit).
+    curr_dir_storage: ?[]u8 = null,
 
     pub fn ioInterface(self: *FilterContext) Io {
         return self.threaded.io();
@@ -105,6 +107,7 @@ pub const FilterContext = struct {
     pub fn deinit(self: *FilterContext) void {
         self.changeLocalFilterDir(null, 0) catch {};
         self.mergelist_cnt = 0;
+        if (self.curr_dir_storage) |s| self.allocator.free(s);
         self.filter_list.deinit();
         self.cvs_filter_list.deinit();
         self.daemon_filter_list.deinit();
@@ -119,6 +122,17 @@ pub const FilterContext = struct {
         self.add_rule_env.mergelist_parents = &self.mergelist_parents;
         self.add_rule_env.mergelist_cnt = &self.mergelist_cnt;
         return &self.add_rule_env;
+    }
+
+    /// Set `options.curr_dir` to an owned copy of `path` (for per-source walks).
+    pub fn setCurrDirPath(self: *FilterContext, abs_path: []const u8) !void {
+        if (self.curr_dir_storage) |old| {
+            self.allocator.free(old);
+            self.curr_dir_storage = null;
+        }
+        const owned = try self.allocator.dupe(u8, abs_path);
+        self.curr_dir_storage = owned;
+        self.options.curr_dir = owned;
     }
 
     pub fn setFilterDir(self: *FilterContext, dir: []const u8) !void {
